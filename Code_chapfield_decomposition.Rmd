@@ -1,0 +1,208 @@
+---
+title: "Decompostion : Mise en commun des bases d'une  saison de croissance 2019 et 2 saisons 2019-2020"
+author: "Ange-Marie BOTROH"
+date: "19 mars 2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Data and preanalysis
+
+```{r message=FALSE}
+source("Preanalysis_commonvariables.R")
+```
+
+##Effect of treatment 
+## aleatoire variable (estce que je met les codes d'integration de variable aleatoire, mais je pense que non)
+
+##model of percent mass loss for 2 seasons
+Analysis was made on 2 seasons , one season was use for exponentiel decay analysis
+```{r}
+
+#####Best model with interaction 
+
+Best_modmixteseason2intTraitSub<- lmer(decay_rate *100 ~ Treatment + Substrate +  Gene_decomp_state + Depth_depot  + Treatment * Substrate   + (1|Sub_site) , subset(decay1and2season_vf,Growth_season == "season2")) 
+#aleatoire variable site give null in vraiance so only sub_site was retain in the moddel
+#Test to see on the soil layer type similar F and M subset(data,souche == 'B' | souche == 'C' ), subset(data,souche %in% c("B","C"))
+
+anova(Best_modmixteseason2intTraitSub)
+summary(Best_modmixteseason2intTraitSub)
+r.squaredGLMM(Best_modmixteseason2intTraitSub) 
+
+#Copy anavo table 
+#clipcopy(round(anova(Best_modmixteseason2intTraitSub),4)) 
+```
+
+
+
+*Verification des consignes 
+```{r}
+plot(Best_modmixteseason2intTraitSub)
+qqnorm(residuals(Best_modmixteseason2intTraitSub))
+qqline(residuals(Best_modmixteseason2intTraitSub))
+
+#For Site 
+#Site_coef <- ranef(Best_modmixteseason2intTraitSub)$Site
+#qqnorm(Site_coef$`(Intercept)`)
+#qqline(Site_coef$`(Intercept)`)
+#For sub_site 
+Sub_Site_coef <- ranef(Best_modmixteseason2intTraitSub)$Sub_site
+qqnorm(Sub_Site_coef$`(Intercept)`)
+qqline(Sub_Site_coef$`(Intercept)`)
+```
+
+
+
+*Multiple comparaison with Emmeans 
+
+```{r}
+#### Decomposition soil layer and intercation 
+
+#soil layer 
+AMB.emm.Statdecomp_sea2_DAv <-  emmeans(Best_modmixteseason2intTraitSub, "Gene_decomp_state")
+
+#Interaction treatment and bryopphyte groups
+AMB.emm.trait_sea2int_Dav <- emmeans(Best_modmixteseason2intTraitSub,~ Treatment * Substrate , adjust = "tukey") # 
+
+```
+
+
+*Letters
+```{r}
+#lettre de decompstion state AMB.emm.Statdecomp_sea2_DAv
+
+emmeansdecompstate2sea.cld <- multcomp::cld(AMB.emm.Statdecomp_sea2_DAv,  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T) #reversed permet de place les lettres dans le mem ordre que les etats
+emmeansdecompstate2sea.cld
+
+
+##pour modele David AMB.emm.trait_sea2int_Dav intrecartion traitement et susbstrat 
+
+emmeanstrait_sea2int_Dav.cld <- multcomp::cld(AMB.emm.trait_sea2int_Dav,  alpha=0.05, Letters=letters,  adjust="tukey")
+emmeanstrait_sea2int_Dav.cld
+```
+
+
+* Representation graphique 
+
+```{r}
+
+#decompsition and interaction bryophyte and treatement 
+ggplot(emmeanstrait_sea2int_Dav.cld, aes(x=Substrate, y=emmean, color= Treatment, shape=Treatment, group=Treatment))+ geom_point(size =2.5,  position =position_dodge(0.4)) + geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2, size = 1, position = position_dodge(0.4))   + theme_bw(14)  +  geom_text(aes(label = .group, y= (upper.CL + 2)),position = position_dodge(width =0.4))   +   labs( x = "Bryophytes groups", y = "Decomposition rate (%)")  + scale_shape_discrete( labels = c("Control", "CPRS", "CPRS+MSP")) + scale_color_brewer(palette = "Accent", labels = c("Control", "CPRS", "CPRS+MSP"))
+
+#decompostion and soil layer
+
+ggplot(emmeansdecompstate2sea.cld, aes(x=  Gene_decomp_state, y=emmean, shape = Gene_decomp_state)) + geom_point(size = 3) + scale_shape_manual(values=c(7, 14, 12,5)) + geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.05, size = 1, position = position_dodge(width = 0.3))  + theme_bw(14)  +  geom_text(aes(label = .group, y= (upper.CL + 2)),  color = "black")   +   labs( x = "Soil layer type ", y = "Decomposition rate (%)") + theme(legend.position = "none") + scale_x_discrete(labels = c("F" = "Of","M" = "Om", "H" = "Oh", "MIN" = "Min"))
+
+
+
+```
+
+
+
+
+
+
+
+###### 2 decembre 2022
+faire un tabelau de contingence pour jutse voir si on trouve plsu de Fet M a 10 qu 20 cm ( pour voir la remarque de Yves )
+```{r eval=FALSE, include=FALSE}
+table(subset(decay1and2season_vf,Growth_season == "season2")$Gene_decomp_state,subset(decay1and2season_vf,Growth_season == "season2")$Depth_depot )
+
+#Perso voir selon les traitement les horizons 18 janv2023
+#table(subset(decay1and2season_vf,Growth_season == "season2")$Treatment,subset(decay1and2season_vf,Growth_season == "season2")$Gene_decomp_state ) #on a plus de mesique et humique dans Herse que dans CPRS. On voit aussi que les horizons commun dans tous les traetment Herse, CPRS et Temoin à 20 cm cest F et M . je pourais voir leffet des etraiteemnts que dans ces 2 horizons ou seulement dans horizons fibriques
+```
+# Exponentiel decay analysis Y REVENIR CEHRCHER A BIEN COMPRENDRE LE CODE K_decay_exepoentiel
+
+#PCA 
+##habitat factors were mesure mainly  in  season1 , analysis was made on his season  decay1and2season_vf
+#Packages
+```{r message=FALSE, include=FALSE}
+#library(dplyr)
+library(FactoMineR) #pour ACP
+library(ade4) # pour la  superpostion des variables categorielles
+library(factoextra)# pour la presentation aussi et calculer les contribution 
+```
+
+#Analysis
+
+```{r include=FALSE}
+###Ancienen base de donne qui a servis pour lancien code de ACP
+# Mesurdata <- read.csv2("decay1_2019and2season_2019to2020Final_Vrai_for_model.csv")#
+# #je vais recuperer la colone des temp Air avec les NA
+# Mesurdata$Depth_depot <- as.factor(Mesurdata$Depth_depot)
+# Mesurdata$Treatment <- as.factor(Mesurdata$Treatment)
+# Mesurdata <-  filter(Mesurdata, !is.na(Soil_Temp))
+
+Mesurdata <-  filter(decay1and2season_vf, !is.na(Soil_Temp)) #pas tres differnet en terrme de donnes de lancienne base
+#si je prends que la saison 1
+Mesurdata_saison1 <- filter(Mesurdata,Growth_season == "season1" ) #pourquoi 28 mesures pareil ona toujours 28 points je vais laisser telle alors 
+#Renommer les vraiables pour la presentation ligne 60 et 158
+Mesurdata_saison1 <- rename(Mesurdata_saison1, "Min_to_surf_watertable_level_zone" = Thick_Water_table__minlevel_to_surf, "Peat_thickness" = Plot_peat_thickness, "Soil_temperature" = Soil_Temp, "Water_content" ="Water_content_plotmean", "C_percent" = Cpercent_plotmean,  "CN_ratio" = Ratio_CN_plotmean , "Bulk_density" = "Bulk_density_plotmean" , "Air_temperature"= Air_Temp  )
+#Arrondir pour la presentation 
+Mesurdata_saison1$decay_rate <- round(Mesurdata_saison1$decay_rate, 4)
+#recuperer que les variables numeriques pour le PCA
+Mesurdata_Saison1_Acp <- Mesurdata_saison1[,c( c("Air_temperature", "Soil_temperature" ,  "Opening_canopy", "Water_table_level_min", "Water_table_level_max", "Water_table_level_mean" , "Peat_thickness" ))]
+#STOP HERE26 JANV
+#Add treatment like qualtatif variable ligne 394 
+Mesurdata_Saison1_Acp_avecTreat <- Mesurdata_Saison1_Acp
+Mesurdata_Saison1_Acp_avecTreat$Treatment <- Mesurdata_saison1$Treatment
+#cree une colonne decay mais qui sera qualitivative et sera ajouter en varibale supplement aire ligne429
+#Les valeurs sont celle qu ejai calculer et mis dasn le fichier excel de effet 
+#il fallait enlever la vraible 9 decay car j'ai mis la moyenne de decay rate au lieu des valeurs individuelles
+# Mesurdata_Saison1_Acp_avecdecay_quali <-  Mesurdata_Saison1_Acp_avecTreat[, -9] %>% mutate ( decay_mean = ifelse(Treatment == "Control", yes = "-0.5 ± 0.945", ifelse(Treatment == "CPRS", yes = "3.347 ± 0.801","7.239 ± 0.969" )) ) #deja fait en bas 
+
+#ligne 461 je crois que cette donne qui plutot ete yutilise pour le PCA ua final
+#et si je n etenait pas du tout compte de Air temeprature position 1 dan sle calcul de l'ACP (jai aussi enlvenr water mean poistion 6 ) -6, et 9 decay rate 
+Mesurdata_Saison1_Acp_avecdecay_quali <-  Mesurdata_Saison1_Acp_avecTreat[, c(-1,-6,-9)] %>% mutate ( decay_mean = ifelse(Treatment == "Control", yes = "-0.5 ± 0.945", ifelse(Treatment == "CPRS", yes = "3.347 ± 0.801","7.239 ± 0.969" )) )
+ Mesurdata_Saison1_Acp_avecdecay_quali <- Mesurdata_Saison1_Acp_avecdecay_quali %>% select(!Treatment) #
+
+# PCA determination
+ res.pca_decayquali <- PCA(Mesurdata_Saison1_Acp_avecdecay_quali,  quali.sup = 6, graph=FALSE) # 6 est la colonne decay rajouté mais vu qu'on met des coord voir ligen add vraible supllemenetaire on ne l'a pas utlise / si on garde temp air et watrmean decay se touve en postion8
+
+
+#ligne 495 PCA visaulosation 
+##VOIR pour placer les valur de decomp pour evitr la superopostion  / RETENIR ICI MAI SPEUT ETRE ENLVER LES PLACETTES QUI ONT UNE EPAISSSEUR TROP IMPORTTANTE COMEM DANS LES ANALYSE DES STOCKS DE CARBONE 
+#cette methode est tout a adifférente de dessus https://rdrr.io/cran/factoextra/man/fviz_add.html
+#on part de lacp comem au dessus
+pvrai <- fviz_pca_biplot (res.pca_decayquali,
+                col.ind = Mesurdata_Saison1_Acp_avecTreat$Treatment , palette = "Accent",
+                addEllipses = TRUE, label = "var",
+                col.var = "black" , repel = TRUE,
+                legend.title = "Treatment") + theme_classic() +   scale_color_brewer(palette="Accent", labels = c("Control", "CPRS", "CPRS+MSP")) + scale_shape_discrete( labels = c("Control", "CPRS", "CPRS+MSP"))
+
+# Add supplementary variables
+
+coord <- data.frame(PC1 = c(-3.8,-1, 2.5), PC2 = c(1.5, -1.8, 1.4))
+rownames(coord) <- c("-0.5 ± 0.945", "3.347 ± 0.801","7.239 ± 0.969" ) #en cas de supersoisition revoir les coordonnes celui de hesere sur PC2 par exemple mettre 1.6/ avec ca pas besoinde mettre la colone decay 26 janvier 2023 
+print(coord)
+pvrai <-fviz_add(pvrai, coord, color =c("#7FC97F" , "#BEAED4" , "#FDC086" ), labelsize =4.5,geom= c("text"), repel = TRUE)
+pvrai #RETNUE POUR LA VERSION 5 DU CHAP2 19 Mai 2022
+#C,est le code audessus de ACP pvrai qui est dans larticle mais ej ne sais pas pourquoi les elypses ne sont pas pareil voir les valeurs utilise dans ACP temp soil estce vraiment celuici ci ou celui de NA predict 26 janvier 2023 
+
+#si j'enleve pas wter table mean ligne 512 / ca pas ete reteneue 26 janv 2023 vu les couleus cet spas ca dans le article 
+# Mesurdata_Saison1_Acp_avecdecay_quali <-  Mesurdata_Saison1_Acp_avecTreat[, c(-1,-9)] %>% mutate ( decay_mean = ifelse(Treatment == "Control", yes = "-0.5 ± 0.945", ifelse(Treatment == "CPRS", yes = "3.347 ± 0.801","7.239 ± 0.969" )) )
+#  Mesurdata_Saison1_Acp_avecdecay_quali <- Mesurdata_Saison1_Acp_avecdecay_quali %>% select(!Treatment)
+# #
+#  res.pca_decayquali <- PCA(Mesurdata_Saison1_Acp_avecdecay_quali,  quali.sup = 7, graph=FALSE) #6
+# 
+#  pvrai <- fviz_pca_biplot (res.pca_decayquali,
+#                 col.ind = Mesurdata_Saison1_Acp_avecTreat$Treatment, palette = "jco",
+#                 addEllipses = TRUE, label = "var",
+#                 col.var = "black" , repel = TRUE,
+#                 legend.title = "Treatment") + theme_classic() #"Air_temperature" pas pris en compte des le ldepat dans el calucl de ACP
+# 
+# pvrai <- fviz_add(pvrai, res.pca_decayquali$quali.sup$coord, color = "#FF0099" ,  labelsize =4.5,geom= c( "text"), repel = TRUE)
+# pvrai
+```
+
+
+##CODE analyseMasslost_ACP_alldata2019_2020_apportHermine
+
+#PATH ANALYSIS
+
+
+
+#CARBON STOCKS ANALYSIS
