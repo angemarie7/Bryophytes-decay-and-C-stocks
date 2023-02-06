@@ -1,0 +1,109 @@
+---
+title: "Analyse de piste"
+author: "Ange-Marie BOTROH"
+date: "29 septembre 2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#path analysis objectif
+The semPaths() function provides a quick and easy way to generate a visual representation of your model and automatically calculates key statistics that describe the relationships between the dependent variable and each independent variable.
+
+
+#library
+
+```{r include=FALSE}
+library(dplyr)
+library("lavaan")
+library("semTools")
+library("semPlot")
+library("lavaanPlot")
+library("questionr")
+library("MVN")
+library("MIIVsem")
+library("dplyr")
+library(formattable)
+```
+
+
+#Data presentation
+
+```{r}
+decay_all <- read.csv2("Data_decomposition.csv")# 
+decay_all$Water_table_level_mean <-  scale(decay_all$Water_table_level_mean)
+```
+
+# Normality test for path 
+```{r}
+mvn(decay_all[, c("decay_rate", "Water_table_level_mean" )], univariatePlot = "box")
+```
+
+
+#Path anlysis for bryophyte groups
+
+
+```{r}
+myModel_path <- '
+    Gene_decomp_state ~   Treatment #
+    Water_table_level_mean ~  Treatment
+    Water_table_level_mean ~  Depth_depot
+    Gene_decomp_state ~ Depth_depot  
+    decay_rate   ~  Treatment + Water_table_level_mean  + Depth_depot + Gene_decomp_state 
+'
+
+#For fuscum 
+fit_myModel_path_F <- sem(model = myModel_path,
+           data  = subset(decay_all, Growth_season == "season2" & Substrate == "Fuscum" ))#
+
+summary(fit_myModel_path_F, fit.measures=T, standardized=T, rsquare=T )
+
+semPaths(fit_myModel_path_F, "std", layout = 'tree', edge.label.cex=1.2, style="lisrel", curvature = 3, nCharNodes = 0, sizeMan=10, optimizeLatRes = TRUE)
+
+#For capilli
+fit_myModel_path_Capi <- sem(model = myModel_path,
+           data  = subset(decay_all, Growth_season == "season2" & Substrate == "Capillifolium" ))#
+
+summary(fit_myModel_path_Capi, fit.measures=T, standardized=T, rsquare=T )
+
+semPaths(fit_myModel_path_Capi, "std", layout = 'tree', edge.label.cex=1.2, style="lisrel", curvature = 3, nCharNodes = 0, sizeMan=10, optimizeLatRes = TRUE)
+
+
+
+#All sphagnum 
+
+fit_myModel_path_Sphag <- sem(model = myModel_path,
+           data  = subset(decay_all, Growth_season == "season2" & Substrate %in% c( "Capillifolium","Fuscum")))#
+
+summary(fit_myModel_path_Sphag, fit.measures=T, standardized=T, rsquare=T )
+
+semPaths(fit_myModel_path_Sphag, "std", layout = 'tree', edge.label.cex=1.2, style="lisrel", curvature = 3, nCharNodes = 0, sizeMan=10, optimizeLatRes = TRUE)
+
+
+
+#For Pleurozium 
+
+fit_myModel_path_Pleuro <- sem(model = myModel_path,
+           data  = subset(decay_all, Growth_season == "season2" & Substrate == "Pleurozium" ))#
+
+summary(fit_myModel_path_Pleuro, fit.measures=T, standardized=T, rsquare=T )
+
+semPaths(fit_myModel_path_Pleuro, "std", layout = 'tree', edge.label.cex=1.2, style="lisrel", curvature = 3, nCharNodes = 0, sizeMan=10, optimizeLatRes = TRUE)
+
+
+
+#clipcopy(fitMeasures(fit_myModel_path_F, c("chisq", "df", "pvalue", "rmsea", "rmsea.ci.lower","rmsea.ci.upper","cfi", "tli", "srmr")))
+#clipcopy (standardizedsolution (fit_myModel_path_F))
+
+```
+
+
+
+
+
+
+
+
+
+
