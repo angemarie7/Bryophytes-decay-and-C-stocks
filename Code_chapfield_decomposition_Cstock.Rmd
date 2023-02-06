@@ -1,0 +1,417 @@
+---
+title: "Decompostion and soil C stocks "
+author: "Ange-Marie BOTROH"
+date: "19 mars 2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Data and preanalysis
+
+```{r message=FALSE, include=FALSE}
+source("Preanalysis_commonvariables.R")
+```
+
+##Effect of treatment 
+## aleatoire variable 
+
+##model of percent mass loss for 2 seasons
+Analysis was made on 2 seasons , one season was use for exponentiel decay analysis
+```{r}
+
+#####Best model with interaction 
+
+Best_modmixteseason2intTraitSub<- lmer(decay_rate *100 ~ Treatment + Substrate +  Gene_decomp_state + Depth_depot  + Treatment * Substrate   + (1|Sub_site) , subset(decay1and2season_vf,Growth_season == "season2")) 
+
+anova(Best_modmixteseason2intTraitSub)
+summary(Best_modmixteseason2intTraitSub)
+r.squaredGLMM(Best_modmixteseason2intTraitSub) 
+
+#Copy anavo table 
+#clipcopy(round(anova(Best_modmixteseason2intTraitSub),4)) 
+```
+
+
+*Multiple comparaison with Emmeans 
+
+```{r}
+#### Decomposition soil layer and intercation 
+
+#soil layer 
+AMB.emm.Statdecomp_sea2_DAv <-  emmeans(Best_modmixteseason2intTraitSub, "Gene_decomp_state")
+
+#Interaction treatment and bryopphyte groups
+AMB.emm.trait_sea2int_Dav <- emmeans(Best_modmixteseason2intTraitSub,~ Treatment * Substrate , adjust = "tukey") # 
+
+```
+
+
+*Letters
+```{r}
+#lettre de decompstion state AMB.emm.Statdecomp_sea2_DAv
+
+emmeansdecompstate2sea.cld <- multcomp::cld(AMB.emm.Statdecomp_sea2_DAv,  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T) #reversed permet de place les lettres dans le mem ordre que les etats
+emmeansdecompstate2sea.cld
+
+
+##pour modele David AMB.emm.trait_sea2int_Dav intrecartion traitement et susbstrat 
+
+emmeanstrait_sea2int_Dav.cld <- multcomp::cld(AMB.emm.trait_sea2int_Dav,  alpha=0.05, Letters=letters,  adjust="tukey")
+emmeanstrait_sea2int_Dav.cld
+```
+
+
+* Representation graphique 
+
+```{r}
+
+#decompsition and interaction bryophyte and treatement 
+ggplot(emmeanstrait_sea2int_Dav.cld, aes(x=Substrate, y=emmean, color= Treatment, shape=Treatment, group=Treatment))+ geom_point(size =2.5,  position =position_dodge(0.4)) + geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2, size = 1, position = position_dodge(0.4))   + theme_bw(14)  +  geom_text(aes(label = .group, y= (upper.CL + 2)),position = position_dodge(width =0.4))   +   labs( x = "Bryophytes groups", y = "Decomposition rate (%)")  + scale_shape_discrete( labels = c("Control", "CPRS", "CPRS+MSP")) + scale_color_brewer(palette = "Accent", labels = c("Control", "CPRS", "CPRS+MSP"))
+
+#decompostion and soil layer
+
+ggplot(emmeansdecompstate2sea.cld, aes(x=  Gene_decomp_state, y=emmean, shape = Gene_decomp_state)) + geom_point(size = 3) + scale_shape_manual(values=c(7, 14, 12,5)) + geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.05, size = 1, position = position_dodge(width = 0.3))  + theme_bw(14)  +  geom_text(aes(label = .group, y= (upper.CL + 2)),  color = "black")   +   labs( x = "Soil layer type ", y = "Decomposition rate (%)") + theme(legend.position = "none") + scale_x_discrete(labels = c("F" = "Of","M" = "Om", "H" = "Oh", "MIN" = "Min"))
+
+
+
+```
+
+
+#PCA 
+##habitat factors were mesure mainly  in  season1 , analysis was made on this season  decay1and2season_vf
+#Packages
+```{r message=FALSE, include=FALSE}
+#library(dplyr)
+library(FactoMineR) #for pca
+library(ade4) # for the overlay of categorical variables
+library(factoextra)# for the presentation also and to calculate the contributions 
+```
+
+#PCA Analysis
+
+```{r include=FALSE}
+Mesurdata <-  filter(decay1and2season_vf, !is.na(Soil_Temp)) 
+#Take for season 1
+Mesurdata_saison1 <- filter(Mesurdata,Growth_season == "season1" ) 
+#reaname variable
+Mesurdata_saison1 <- rename(Mesurdata_saison1, "Min_to_surf_watertable_level_zone" = Thick_Water_table__minlevel_to_surf, "Peat_thickness" = Plot_peat_thickness, "Soil_temperature" = Soil_Temp, "Water_content" ="Water_content_plotmean", "C_percent" = Cpercent_plotmean,  "CN_ratio" = Ratio_CN_plotmean , "Bulk_density" = "Bulk_density_plotmean" , "Air_temperature"= Air_Temp  )
+
+#Round up for presentation 
+Mesurdata_saison1$decay_rate <- round(Mesurdata_saison1$decay_rate, 4)
+#retrieve only numeric variables for the PCA
+Mesurdata_Saison1_Acp <- Mesurdata_saison1[,c( c("Air_temperature", "Soil_temperature" ,  "Opening_canopy", "Water_table_level_min", "Water_table_level_max", "Water_table_level_mean" , "Peat_thickness" ))]
+
+#Add treatment like qualtatif variable 
+Mesurdata_Saison1_Acp_avecTreat <- Mesurdata_Saison1_Acp
+Mesurdata_Saison1_Acp_avecTreat$Treatment <- Mesurdata_saison1$Treatment
+
+
+
+#and if I did not take into account Air temeprature position -1, water mean poistion -6, and -9 decay rate for presentation 
+Mesurdata_Saison1_Acp_avecdecay_quali <-  Mesurdata_Saison1_Acp_avecTreat[, c(-1,-6,-9)] %>% mutate ( decay_mean = ifelse(Treatment == "Control", yes = "-0.5 ± 0.945", ifelse(Treatment == "CPRS", yes = "3.347 ± 0.801","7.239 ± 0.969" )) )
+ 
+Mesurdata_Saison1_Acp_avecdecay_quali <- Mesurdata_Saison1_Acp_avecdecay_quali %>% dplyr::select(!Treatment) 
+
+# PCA determination
+ res.pca_decayquali <- PCA(Mesurdata_Saison1_Acp_avecdecay_quali,  quali.sup = 6, graph=FALSE) # 6 is the decay column added but beacause  coord see ligne 141  this column did not use. 
+
+#ligne 495 PCA visualisation
+pvrai <- fviz_pca_biplot (res.pca_decayquali,
+                col.ind = Mesurdata_Saison1_Acp_avecTreat$Treatment , palette = "Accent",
+                addEllipses = TRUE, label = "var",
+                col.var = "black" , repel = TRUE,
+                legend.title = "Treatment") + theme_classic() +   scale_color_brewer(palette="Accent", labels = c("Control", "CPRS", "CPRS+MSP")) + scale_shape_discrete( labels = c("Control", "CPRS", "CPRS+MSP"))
+
+##I will use this option but the values are positioned at places not too readable  
+pvrai_essai <- fviz_add(pvrai, res.pca_decayquali$quali.sup$coord, color = c("#7FC97F" , "#BEAED4" , "#FDC086" ),  labelsize =4.5,geom= c("text"), repel = TRUE)
+pvrai_essai
+
+#or the one below which allows to place the decay values or we can see better according to coordinates 
+
+# Add supplementary variables
+
+coord <- data.frame(PC1 = c(-3.8,-1, 2.5), PC2 = c(1.5, -1.8, 1.4))
+rownames(coord) <- c("-0.5 ± 0.945", "3.347 ± 0.801","7.239 ± 0.969" )  
+print(coord)
+pvrai <-fviz_add(pvrai, coord, color =c("#7FC97F" , "#BEAED4" , "#FDC086" ), labelsize =4.5,geom= c("text"), repel = TRUE)
+pvrai 
+
+```
+
+
+#Path analysis see other code because the package  ‘semTools’ can be laoded with ‘anova’ 
+
+
+#CARBON STOCKS ANALYSIS
+
+#package see in top of code  to avoid to repeat package 
+```{r echo=TRUE, message=FALSE}
+library(dplyr)
+library(ggplot2) #graphique
+library(cowplot) # pour arranger plusieurs graphiques de ggplot  dans la mem fenetre 
+library(lmerTest) #modele mixte
+#library(nlme)
+
+
+library(AICcmodavg) #Library for chossing the best model based AIC
+
+#libray de stepwise
+library(tidyverse)
+library(caret)
+library(leaps)
+library(MASS)
+
+library(MuMIn)# pour calcul de r2
+library(emmeans)#pour la comparison multiple 
+library(multcomp) 
+#library(ggpubr)
+library(rstatix) #POUR kruskal walis test
+
+#Pour clipcopy
+library("questionr") 
+
+#pour table model
+library(sjPlot)
+#pour table aussi apartir de data frame 
+library(formattable)
+
+#P
+library(gdata)
+#recode les variables 
+library(forcats)# 
+```
+
+#Soil stocks C data ligne 65 Carbon_stock_analysis_Mars2022_VF 
+```{r}
+BD_Stocks_final <- read.csv2("BD_SoilCstocks.csv  ")# 
+
+#formated data
+BD_Stocks_final$Treatment <- as.factor(BD_Stocks_final$Treatment)
+BD_Stocks_final$Treatment <- relevel(BD_Stocks_final$Treatment, ref = "Control")
+BD_Stocks_final$Treatment <- factor(BD_Stocks_final$Treatment, levels = c("Control" ,  "CPRS",  "Harrow"))
+BD_Stocks_final$Horizon_name <- as.factor(BD_Stocks_final$Horizon_name)
+BD_Stocks_final$Horizon_name <- factor(BD_Stocks_final$Horizon_name, levels = c("F" ,  "M",  "H" ,  "Min"))
+BD_Stocks_final$plant_group <- as.factor(BD_Stocks_final$plant_group) #Not use
+
+str(BD_Stocks_final) 
+BD_Stocks_final$Thickness_refcontrolmodif <- scale(BD_Stocks_final$Thickness_refcontrolmodif)
+```
+
+###Models For total carbon stokcs ( organic and min) 
+
+```{r}
+#
+modstocks_Total<- lmer(log(C_Quantity_totalprofiltha) ~ Treatment *Thickness_refcontrolmodif  + (1|Sub_site) ,distinct(BD_Stocks_final, C_Quantity_totalprofiltha, .keep_all = T)) #  (1|Site) lead  a singularity error 
+#For total stocks it is important  to put distinct on data to take ony 45 points because values were repeated
+summary(modstocks_Total)
+anova(modstocks_Total)
+
+#Emmeans de prtofil entienr orga jusuqau sol mineal 
+emmeans_stocktotalprofil_response_withLetter <- multcomp::cld(emmeans(modstocks_Total,"Treatment" , transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+emmeans_stocktotalprofil_response_withLetter
+
+#Total Organic profil 
+
+modstocks_TotalOrga<- lmer(log(C_Quantity_totalprofil_Orga_tha) ~ Treatment *  Thickness_refcontrolmodif + (1|Sub_site) , distinct(BD_Stocks_final, C_Quantity_totalprofil_Orga_tha, .keep_all = T)) 
+summary(modstocks_TotalOrga)
+ anova(modstocks_TotalOrga)
+ emmeans_stocktotalOrga_response_withLetter <- multcomp::cld(emmeans(modstocks_TotalOrga,"Treatment" , transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+ emmeans_stocktotalOrga_response_withLetter
+# 
+# #clipcopy(round(anova(modstocks_TotalOrga),4))
+```
+
+#stocks evoultion according thickness 
+
+```{r}
+boot_res <- bootMer(modstocks_TotalOrga, function(x) predict(x, re.form = NA), nsim = 200)
+
+ 
+
+BD_Stocks_final_forboot <- mutate(distinct(BD_Stocks_final, C_Quantity_totalprofil_Orga_tha, .keep_all = T),
+
+                               pred = predict(modstocks_TotalOrga, re.form = NA),
+
+                               lo = apply(boot_res$t, 2, quantile, probs = 0.025),
+
+                               hi = apply(boot_res$t, 2, quantile, probs = 0.975))
+
+ 
+ggplot(BD_Stocks_final_forboot, aes(x = Thickness_refcontrolmodif, y = log(C_Quantity_totalprofil_Orga_tha), fill = Treatment, color = Treatment)) +
+
+    geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.3) +
+
+    geom_line(aes(y = pred)) +
+
+    geom_point(aes(color = Treatment)) + 
+  scale_color_brewer(palette = "Accent") + scale_fill_brewer(palette = "Accent", labels = c("Control", "CPRS", "CPRS+MSP"))  + scale_color_brewer(palette = "Accent", labels = c("Control", "CPRS", "CPRS+MSP"))  + 
+  theme_classic(14) + labs( x = "Organic layer thickness before treatment (cm)", y = "log(Organic soil carbon stocks (t/ha))")
+```
+
+
+#for variable others
+##For all details variables used to calcuate Carbon stocks 
+#For C_percent 
+```{r}
+#Global not by horizon
+modCpercent_general<- lmer(C_percent ~  Treatment    + (1|Site)   ,BD_Stocks_final)  #Thickness_ref
+summary(modCpercent_general)
+anova(modCpercent_general)
+multcomp::cld(emmeans(modCpercent_general, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+
+#HorizonF
+modCpercent_F<- lmer(C_percent ~  Treatment  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="F")) 
+summary(modCpercent_F)
+anova(modCpercent_F)
+#emmeans(modCpercent_F, "Treatment", transform = "log", type = "response")
+multcomp::cld(emmeans(modCpercent_F, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+ 
+ #Horizon M
+modCpercent_M<- lmer(C_percent ~  Treatment  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="M")) #+ Thickness_ref
+summary(modCpercent_M)
+anova(modCpercent_M)
+multcomp::cld(emmeans(modCpercent_M, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T) #
+
+#Horizon H
+modCpercent_H<- lmer(C_percent ~  Treatment   + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="H")) #
+summary(modCpercent_H)
+anova(modCpercent_H)
+multcomp::cld(emmeans(modCpercent_H, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T) #
+
+
+#Horizon Min
+modCpercent_Min<- lmer(C_percent ~  Treatment  + (1|Site) ,subset(BD_Stocks_final,  Horizon_name =="Min"))
+summary(modCpercent_Min)
+anova(modCpercent_Min)
+multcomp::cld(emmeans(modCpercent_Min, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+```
+
+#For Bulk density 
+```{r}
+#Global not by horizon
+modBulkdens_general<- lmer(log(Bulk_density)  ~  Treatment  + (1|Site)   ,BD_Stocks_final) 
+summary(modBulkdens_general)
+
+anova(modBulkdens_general)
+#emmeans(modBulkdens_general, "Treatment", transform = "log", type = "response")
+multcomp::cld(emmeans(modBulkdens_general, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+
+#HorizonF
+modBulkdens_F<- lmer(log(Bulk_density) ~  Treatment  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="F")) 
+summary(modBulkdens_F)
+
+anova(modBulkdens_F)
+#emmeans(modBulkdens_F, "Treatment", transform = "log", type = "response")
+multcomp::cld(emmeans(modBulkdens_F, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+ 
+#Horizon M
+modBulkdens_M<- lmer(log(Bulk_density) ~  Treatment  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="M")) 
+summary(modBulkdens_M)
+
+anova(modBulkdens_M)
+#emmeans(modBulkdens_M, "Treatment", transform = "log", type = "response")
+multcomp::cld(emmeans(modBulkdens_M, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+
+#Horizon H
+modBulkdens_H<- lmer(log(Bulk_density) ~  Treatment  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="H")) 
+summary(modBulkdens_H)
+
+anova(modBulkdens_H)
+multcomp::cld(emmeans(modBulkdens_H, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T) #
+
+
+#Horizon Min
+modBulkdens_Min<- lmer(log(Bulk_density) ~  Treatment  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="Min")) 
+summary(modBulkdens_Min)
+anova(modBulkdens_Min)
+multcomp::cld(emmeans(modBulkdens_Min, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+```
+
+#For thickness 
+```{r}
+#HorizonF
+modThickHori_F<- lmer(log(Total_thickness_horizon) ~  Treatment +Thickness_refcontrolmodif  + (1|Sub_site)   ,subset(BD_Stocks_final,  Horizon_name =="F")) #ICI mettre aussi les sub_site car les site svcre une erreur de singularité et na,rrive pas trouver de différence entre le emmeans alrs que anova dit qu'il ya un effet des traitements
+summary(modThickHori_F)
+anova(modThickHori_F)
+#emmeans(modThickHori_F, "Treatment", transform = "log", type = "response")
+multcomp::cld(emmeans(modThickHori_F, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+ 
+#Horizon M
+modThickHori_M<- lmer(log(Total_thickness_horizon) ~  Treatment * Thickness_refcontrolmodif  + (1|Site)+  (1|Sub_site)   ,subset(BD_Stocks_final,  Horizon_name =="M")) #(1|Site)
+summary(modThickHori_M)
+anova(modThickHori_M)
+#emmeans(modThickHori_M, "Treatment", transform = "log", type = "response")
+multcomp::cld(emmeans(modThickHori_M, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+
+#Horizon H
+modThickHori_H<- lmer(log(Total_thickness_horizon) ~  Treatment * Thickness_refcontrolmodif  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="H"))
+summary(modThickHori_H)
+anova(modThickHori_H)
+multcomp::cld(emmeans(modThickHori_H, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T) #
+
+
+#Horizon Min
+modThickHori_Min<- lmer(log(Total_thickness_horizon) ~  Treatment * Thickness_refcontrolmodif  + (1|Site)   ,subset(BD_Stocks_final,  Horizon_name =="Min"))
+summary(modThickHori_Min)
+anova(modThickHori_Min)
+multcomp::cld(emmeans(modThickHori_Min, "Treatment", transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+```
+
+* For total thickness 
+
+```{r}
+#Total profil
+modThicktotal<- lmer(log(Total_thickness_OrgaMin)~ Treatment  *  Thickness_refcontrolmodif   + (1|Site) + (1|Sub_site),BD_Stocks_final)
+summary(modThicktotal)
+anova(modThicktotal) #
+pairs(emmeans(modThicktotal, "Treatment"))
+multcomp::cld(emmeans(modThicktotal,"Treatment" , transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+
+#Organic
+modThickOrga<- lmer(log(Total_thickness_Organic )~ Treatment  *   Thickness_refcontrolmodif   + (1|Site) + (1|Sub_site),BD_Stocks_final)
+summary(modThickOrga)
+anova(modThickOrga) #
+#pairs(emmeans(modThickOrga, "Treatment")) 
+multcomp::cld(emmeans(modThickOrga,"Treatment" , transform = "log", type = "response"),  alpha=0.05, Letters=letters,  adjust="tukey", reversed = T)
+```
+
+
+
+#puissance of analisys see code ligne 201
+##On total stocks puissance
+```{r}
+#Take values in summary(modstocks_Total)
+#SE std.error
+SE_profiltot_Harrow <- 1.277716 
+SE_profiltot_CPRS <-  1.221207
+
+
+#df =degre de liberte 
+
+df_profiltot_Harrow <- 34.981840
+df_profiltot_CPRS <- 34.227270 
+
+
+#Calcul de n et SD
+
+n_profiltot_Harrow <- df_profiltot_Harrow + 1 
+n_profiltot_CPRS = df_profiltot_CPRS +1 
+
+SD_profiltot_Harrow <- SE_profiltot_Harrow * sqrt(n_profiltot_Harrow)
+SD_profiltot_CPRS <-  SE_profiltot_CPRS * sqrt(n_profiltot_CPRS)
+
+
+##Calculation of the delta (difference between means) to have a power of 80%
+pwt_harrow <- power.t.test(n = n_profiltot_Harrow, power = 0.8, sd = SD_profiltot_Harrow, type = "one.sample") ; pwt_harrow
+pwt_CPRS <- power.t.test(n = n_profiltot_CPRS, power = 0.8, sd = SD_profiltot_CPRS, type = "one.sample"); pwt_CPRS
+
+#See delta in the C stocks mesure scale  
+delta_har <- exp( pwt_harrow$delta) ; delta_har
+delta_Cprs <- exp(pwt_CPRS$delta) ; delta_Cprs
+```
+
+
+
