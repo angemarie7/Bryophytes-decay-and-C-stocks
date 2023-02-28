@@ -144,6 +144,52 @@ pvrai
 
 #Path analysis see other code because the package  ‘semTools’ can be laoded with ‘anova’ 
 
+#Exponentiel decay K
+
+#Packages for k decay
+
+```{r}
+library(devtools)
+#devtools::install_github("onofriandreapg/aomisc")#Already installed in my R 
+# loading package
+library(aomisc)
+```
+
+
+#Data kdecay 
+```{r}
+#Data
+moydecomp_for_k <- decay1and2season_vf %>% group_by(Growth_season,Treatment, Substrate) %>%  summarise(n=n(), mean_decay = mean(decay_rate), Erreur_type = sd(decay_rate)/sqrt(n), ic_min = mean_decay  + qt(0.025, df =n-1) * Erreur_type, ic_max = mean_decay + qt(0.975, df =n-1 )* Erreur_type)
+#moydecomp_for_k
+
+data_expodecay <-expand.grid(Growth_season ="season0", Treatment =c("Control", "CPRS", "Harrow"),
+                             Substrate = c("Pleurozium", "Capillifolium", "Fuscum"), mean_decay = 0)
+data_expodecay <-  rbind( data_expodecay,moyexpodecay_k[, c( "Growth_season","Treatment", "Substrate", "mean_decay")])
+
+data_expodecay <- mutate (data_expodecay , mass_remaining_prop = 1-mean_decay, 
+                          Time = ifelse( Growth_season=="season0" ,
+                          yes =  0, ifelse(Growth_season=="season1", yes = 1, no= 2)))
+
+```
+
+
+#k by treatment
+```{r}
+# output k and stand error by treatment output in my article 
+
+model_expo_Control<- drm(mass_remaining_prop ~ Time, fct = DRC.expoDecay(),
+                                 data = subset(data_expodecay, Treatment == "Control"))
+summary(model_expo_Control)$coefficients[c(2,4)] #
+
+model_expo_CPRS<- drm(mass_remaining_prop ~ Time, fct = DRC.expoDecay(),
+                         data = subset(data_expodecay, Treatment == "CPRS"))
+summary(model_expo_CPRS)$coefficients[c(2,4)] #
+
+model_expo_Harrow <- drm(mass_remaining_prop ~ Time, fct = DRC.expoDecay(),
+                                data = subset(data_expodecay, Treatment == "Harrow"))
+summary(model_expo_Harrow)$coefficients[c(2,4)] #
+```
+
 
 #CARBON STOCKS ANALYSIS
 
